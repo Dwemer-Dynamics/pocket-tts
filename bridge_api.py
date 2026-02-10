@@ -15,7 +15,7 @@ SPEAKER_DIR = "./speakers"
 os.makedirs(SPEAKER_DIR, exist_ok=True)
 print("\n" + "="*60)
 print(" POCKET TTS BRIDGE: DWEMER/CHIM AGNOSTIC EDITION")
-print(" Running in: /home/dwemer/xtts-api-server")
+print(" Original code by Gestel. (thank you very much)")
 print("="*60 + "\n")
 
 # Initialize Model
