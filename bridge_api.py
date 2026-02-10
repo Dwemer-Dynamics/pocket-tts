@@ -14,7 +14,7 @@ PORT = 8020
 SPEAKER_DIR = "./speakers"
 os.makedirs(SPEAKER_DIR, exist_ok=True)
 print("\n" + "="*60)
-print(" POCKET TTS BRIDGE: DWEMER/CHIM AGNOSTIC EDITION")
+print(" POCKET TTS BRIDGE")
 print(" Original code by Gestel. (thank you very much)")
 print("="*60 + "\n")
 
