@@ -68,30 +68,31 @@ if [ "$SETUP_GENERATION" = "y" ] || [ "$SETUP_GENERATION" = "Y" ]; then
     
     echo ""
     echo "Now we'll set up HuggingFace authentication..."
-    echo "When prompted, paste your HuggingFace token:"
-    echo ""
+    echo "Paste your HuggingFace token here and press ENTER:"
+    read -r HF_TOKEN
     
-    # Install huggingface-hub if not already installed
-    pip install -q huggingface-hub
+    # Create HuggingFace config directory
+    mkdir -p ~/.cache/huggingface
     
-    # Run HF auth login using huggingface-cli
-    huggingface-cli login
+    # Write token to file
+    echo "$HF_TOKEN" > ~/.cache/huggingface/token
+    chmod 600 ~/.cache/huggingface/token
     
-    if [ $? -eq 0 ]; then
+    if [ -f ~/.cache/huggingface/token ] && [ -s ~/.cache/huggingface/token ]; then
         echo ""
         echo "✓ Custom voice generation setup complete!"
         echo "  Voice samples will be processed automatically when needed."
     else
         echo ""
         echo "⚠ Custom voice generation setup incomplete."
-        echo "  You can set it up later by running: huggingface-cli login"
+        echo "  You can set it up later by running this installer again."
         echo "  Without custom voices, you can only use built-in voices:"
         echo "  alba, marius, javert, jean, fantine, cosette, eponine, azelma"
     fi
 else
     echo ""
     echo "⚠ Skipping custom voice generation setup."
-    echo "  You can set it up later by running: huggingface-cli login"
+    echo "  You can set it up later by running this installer again."
     echo "  Without custom voices, you can only use built-in voices:"
     echo "  alba, marius, javert, jean, fantine, cosette, eponine, azelma"
 fi
