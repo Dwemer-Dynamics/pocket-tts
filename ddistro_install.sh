@@ -9,7 +9,7 @@ VENV_DIR="$REPO_DIR/venv"
 
 echo "=== CHIM pocket-tts setup ==="
 echo ""
-echo "NOTE: pocket-tts and CHIM XTTS use the same port (8020)."
+echo "NOTE: pocket-tts and CHIM XTTS/Chatterbox use the same port (8020)."
 echo "      Only one can be enabled at a time."
 echo ""
 
@@ -43,6 +43,58 @@ source venv/bin/activate
 # Upgrade pip and install dependencies
 echo "Installing dependencies..."
 pip install pocket_tts uvicorn fastapi
+
+echo ""
+echo "=== Setting up Custom Voice Generation ==="
+echo ""
+echo "Custom voice generation allows you to use voice samples from your game."
+echo "To enable it, you need to:"
+echo "  1. Have a HuggingFace account"
+echo "  2. Accept the license at: https://huggingface.co/kyutai/pocket-tts"
+echo "  3. Provide your HuggingFace token"
+echo ""
+echo "Would you like to set up custom voice generation now? (y/n)"
+read -r SETUP_GENERATION
+
+if [ "$SETUP_GENERATION" = "y" ] || [ "$SETUP_GENERATION" = "Y" ]; then
+    echo ""
+    echo "Please follow these steps:"
+    echo "  1. Go to: https://huggingface.co/kyutai/pocket-tts"
+    echo "  2. Click 'Agree and access repository'"
+    echo "  3. Get your token from: https://huggingface.co/settings/tokens"
+    echo ""
+    echo "Press ENTER when you've accepted the license and have your token ready..."
+    read
+    
+    echo ""
+    echo "Now we'll set up HuggingFace authentication..."
+    echo "When prompted, paste your HuggingFace token:"
+    echo ""
+    
+    # Install huggingface-hub if not already installed
+    pip install -q huggingface-hub
+    
+    # Run HF auth login
+    uvx hf auth login
+    
+    if [ $? -eq 0 ]; then
+        echo ""
+        echo "✓ Custom voice generation setup complete!"
+        echo "  Voice samples will be processed automatically when needed."
+    else
+        echo ""
+        echo "⚠ Custom voice generation setup incomplete."
+        echo "  You can set it up later by running: uvx hf auth login"
+        echo "  Without custom voices, you can only use built-in voices:"
+        echo "  alba, marius, javert, jean, fantine, cosette, eponine, azelma"
+    fi
+else
+    echo ""
+    echo "⚠ Skipping custom voice generation setup."
+    echo "  You can set it up later by running: uvx hf auth login"
+    echo "  Without custom voices, you can only use built-in voices:"
+    echo "  alba, marius, javert, jean, fantine, cosette, eponine, azelma"
+fi
 
 echo
 echo "This will start CHIM pocket-tts to download the selected model"
