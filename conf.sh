@@ -1,24 +1,29 @@
 #!/bin/bash
+clear
+cat << EOF
+PocketTTS
+
+This will configure the PocketTTS (Text-to-Speech) service.
+
+PocketTTS is a CPU-based TTS engine that generates custom voices from samples.
+Perfect for AMD systems or CPU-only setups. No GPU required.
+
+Options:
+* CPU = Runs on CPU only. Best choice for AMD cards or systems without NVIDIA GPU.
+
+PocketTTS is designed for CPU usage and does not require a GPU.
+
+EOF
 
 if [ ! -d /home/dwemer/pocket-tts ]; then
-        exit "chatterbox not installed"
+        echo "Error: PocketTTS not installed"
+        exit 1
 fi
 
-mapfile -t files < <(find /home/dwemer/pocket-tts/ -name "start-*.sh")
-# Check if any files were found
-
-if [ ${#files[@]} -eq 0 ]; then
-    echo "No files found matching the pattern."
-    exit 1
-fi
-
-# Display the files in a numbered list
-echo -e "Select a an option from the list:\n\n"
-for i in "${!files[@]}"; do
-    echo "$((i+1)). ${files[$i]}"
-done
-
-echo "0. Disable service";
+echo "Select an option from the list:"
+echo
+echo "1. Enable service (CPU)"
+echo "0. Disable service"
 echo
 
 # Prompt the user to make a selection
@@ -27,23 +32,17 @@ read -p "Select an option by picking the matching number: " selection
 # Validate the input
 
 if [ "$selection" -eq "0" ]; then
-    echo "Disabling service. Run this again to enable"
+    echo "Disabling service. Run this again to enable it"
     rm /home/dwemer/pocket-tts/start.sh &>/dev/null
     exit 0
 fi
 
-if ! [[ "$selection" =~ ^[0-9]+$ ]] || [ "$selection" -lt 1 ] || [ "$selection" -gt ${#files[@]} ]; then
-    echo "Invalid selection."
-    exit 1
+if [ "$selection" -eq "1" ]; then
+    ln -sf /home/dwemer/pocket-tts/start-cpu.sh /home/dwemer/pocket-tts/start.sh
+    echo "✓ PocketTTS enabled with CPU mode"
+    exit 0
 fi
 
-# Get the selected file
-selected_file="${files[$((selection-1))]}"
+echo "Invalid selection."
+exit 1
 
-echo "You selected: $selected_file"
-
-ln -sf $selected_file /home/dwemer/pocket-tts/start.sh
-
-
-# Ensure all start scripts are executable
-chmod +x /home/dwemer/pocket-tts/start-*.sh 2>/dev/null || true
