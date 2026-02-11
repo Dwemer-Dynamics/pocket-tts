@@ -74,8 +74,8 @@ if [ "$SETUP_GENERATION" = "y" ] || [ "$SETUP_GENERATION" = "Y" ]; then
     # Install huggingface-hub if not already installed
     pip install -q huggingface-hub
     
-    # Run HF auth login
-    uvx hf auth login
+    # Run HF auth login using huggingface-cli
+    huggingface-cli login
     
     if [ $? -eq 0 ]; then
         echo ""
@@ -84,14 +84,14 @@ if [ "$SETUP_GENERATION" = "y" ] || [ "$SETUP_GENERATION" = "Y" ]; then
     else
         echo ""
         echo "⚠ Custom voice generation setup incomplete."
-        echo "  You can set it up later by running: uvx hf auth login"
+        echo "  You can set it up later by running: huggingface-cli login"
         echo "  Without custom voices, you can only use built-in voices:"
         echo "  alba, marius, javert, jean, fantine, cosette, eponine, azelma"
     fi
 else
     echo ""
     echo "⚠ Skipping custom voice generation setup."
-    echo "  You can set it up later by running: uvx hf auth login"
+    echo "  You can set it up later by running: huggingface-cli login"
     echo "  Without custom voices, you can only use built-in voices:"
     echo "  alba, marius, javert, jean, fantine, cosette, eponine, azelma"
 fi
