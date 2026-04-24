@@ -18,6 +18,8 @@ if [ ! -d /home/dwemer/pocket-tts ]; then
         exit 1
 fi
 
+source venv/bin/activate
+
 # Show CUDA availability
 if python3 -c "import torch; exit(0 if torch.cuda.is_available() else 1)" 2>/dev/null; then
     GPU_INFO=$(python3 -c "import torch; p=torch.cuda.get_device_properties(0); print(f'{p.name} ({p.total_memory//1024**2} MB VRAM)')" 2>/dev/null)
