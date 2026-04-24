@@ -106,6 +106,7 @@ class TTSModel(nn.Module):
         noise_clamp: float | None,
         eos_threshold,
         origin: Path | None,
+        device: str | torch.device = "cpu",
     ) -> Self:
         flow_lm = FlowLMModel.from_pydantic_config(
             config.flow_lm,
@@ -135,9 +136,10 @@ class TTSModel(nn.Module):
         noise_clamp: float | None,
         eos_threshold,
         origin: Path | None = None,
+        device: str | torch.device = "cpu",
     ) -> Self:
         tts_model = cls._from_pydantic_config(
-            config, temp, lsd_decode_steps, noise_clamp, eos_threshold, origin=origin
+            config, temp, lsd_decode_steps, noise_clamp, eos_threshold, origin=origin, device=device
         )
         tts_model.flow_lm.speaker_proj_weight = torch.nn.Parameter(
             torch.zeros(
@@ -183,7 +185,7 @@ class TTSModel(nn.Module):
             outer_dim=mimi_config["outer_dim"],
             encoder_transformer=encoder_transformer,
             decoder_transformer=decoder_transformer,
-        ).to(device="cpu")
+        ).to(device=device)
 
         # Load mimi weights from the config safetensors file with complete mapping for strict loading
 
@@ -220,6 +222,10 @@ class TTSModel(nn.Module):
             logger.info(f"Saved TTSModel weights to {save_path}")
         logging.info(f"TTS Model loaded successfully. Its size is {size_in_mb} MB")
 
+        if str(device) != "cpu":
+            logger.info(f"Moving model to {device}")
+            tts_model = tts_model.to(device=device)
+
         # TODO: move this in the __init__ and make self.mimi in __init__
         for top_module in (tts_model.flow_lm, tts_model.mimi):
             for module_name, module in top_module.named_modules():
@@ -239,6 +245,7 @@ class TTSModel(nn.Module):
         noise_clamp: float | int | None = DEFAULT_NOISE_CLAMP,
         eos_threshold: float = DEFAULT_EOS_THRESHOLD,
         quantize: bool = False,
+        device: str | torch.device = "cpu",
     ) -> Self:
         """Load a pre-trained TTS model with specified configuration.
 
@@ -265,10 +272,14 @@ class TTSModel(nn.Module):
                 inference speed by ~27% on x86 (FBGEMM).
                 No measurable impact on speech quality (WER unchanged).
                 For optimized performance, install torchao: ``pip install pocket-tts[quantize]``
+            device: Target device for the model. Defaults to ``"cpu"``. Use ``"cuda"``
+                or ``"cuda:0"`` to run on GPU. Note: for this small model, CPU with
+                multi-threaded inference is often faster than GPU due to kernel launch
+                overhead. Benchmark before committing to GPU in production.
 
         Returns:
-            TTSModel: Fully initialized model with loaded weights on cpu, ready for
-                text-to-speech generation.
+            TTSModel: Fully initialized model with loaded weights on the specified device,
+                ready for text-to-speech generation.
 
         Raises:
             FileNotFoundError: If the specified config file or model weights
@@ -306,7 +317,7 @@ class TTSModel(nn.Module):
         logger.info(f"Loading model from config at {config_path}...")
 
         tts_model = TTSModel._from_pydantic_config_with_weights(
-            config, temp, lsd_decode_steps, noise_clamp, eos_threshold, origin=config_path
+            config, temp, lsd_decode_steps, noise_clamp, eos_threshold, origin=config_path, device=device
         )
 
         if quantize:

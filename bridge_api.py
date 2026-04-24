@@ -1,26 +1,120 @@
 import os
+import argparse
 import torch
 import scipy.io.wavfile
 import uuid
 import shutil
 import json
 import time
-from fastapi import FastAPI, Request, BackgroundTasks
+from fastapi import FastAPI, Request, BackgroundTasks, Form
 from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel
+from typing import Optional
 from pocket_tts import TTSModel
 app = FastAPI()
 # Configuration
 PORT = 8020
 SPEAKER_DIR = "./speakers"
 os.makedirs(SPEAKER_DIR, exist_ok=True)
+AVAILABLE_MODELS = [
+    ("english",        "English (alias for english_2026-04, default)"),
+    ("english_2026-04","English improved — better short sentences & voice cloning. 6 layers."),
+    ("english_2026-01","English original model. 6 layers."),
+    ("italian",        "Italian distilled. 6 layers."),
+    ("italian_24l",    "Italian undistilled. 24 layers."),
+    ("german",         "German distilled. 6 layers."),
+    ("german_24l",     "German undistilled. 24 layers."),
+    ("spanish",        "Spanish distilled. 6 layers."),
+    ("spanish_24l",    "Spanish undistilled. 24 layers."),
+    ("portuguese",     "Portuguese distilled. 6 layers."),
+    ("portuguese_24l", "Portuguese undistilled. 24 layers."),
+    ("french_24l",     "French undistilled. 24 layers."),
+]
+
+parser = argparse.ArgumentParser(description="Pocket TTS Bridge API")
+parser.add_argument("--device", type=str, default="cpu", help="Device to run the model on (cpu, cuda, cuda:0, etc.)")
+parser.add_argument("--language", type=str, default=None, help="Language/model to load. See --list-models.")
+parser.add_argument("--quantize", action="store_true", help="Apply dynamic int8 quantization (~30%% faster on CPU, recommended for 24-layer models)")
+parser.add_argument("--list-models", action="store_true", help="Print all available models/languages and exit")
+parser.add_argument("--list-devices", action="store_true", help="Print available devices and exit")
+args, _ = parser.parse_known_args()
+
+if args.list_models:
+    print("\nAvailable models (use with --language):\n")
+    for name, desc in AVAILABLE_MODELS:
+        print(f"  {name:<20} {desc}")
+    print()
+    raise SystemExit(0)
+
+if args.list_devices:
+    print("\nAvailable devices:\n")
+    print(f"  {'cpu':<20} CPU ({os.cpu_count()} hardware threads, torch limited to {torch.get_num_threads()} for inference)")
+    if torch.cuda.is_available():
+        for i in range(torch.cuda.device_count()):
+            props = torch.cuda.get_device_properties(i)
+            print(f"  {'cuda:' + str(i):<20} {props.name} ({props.total_memory // 1024**2} MB VRAM)")
+    else:
+        print("  (no CUDA devices available)")
+    print()
+    raise SystemExit(0)
+
+DEVICE = args.device
+LANGUAGE = args.language
+QUANTIZE = args.quantize
+
 print("\n" + "="*60)
 print(" POCKET TTS BRIDGE")
 print(" Original code by Gestel. (thank you very much)")
 print("="*60 + "\n")
+if DEVICE.startswith("cuda"):
+    if torch.cuda.is_available():
+        idx = torch.device(DEVICE).index or 0
+        print(f" Device  : {DEVICE} ({torch.cuda.get_device_name(idx)})")
+        print(f" VRAM    : {torch.cuda.get_device_properties(idx).total_memory // 1024**2} MB")
+    else:
+        print(f" Device  : {DEVICE} requested but CUDA is not available — falling back to CPU")
+        DEVICE = "cpu"
+else:
+    print(f" Device  : {DEVICE} ({torch.get_num_threads()} threads)")
+print(f" Language: {LANGUAGE or 'english (default)'}")
+print(f" Quantize: {QUANTIZE}")
 
 # Initialize Model
-model = TTSModel.load_model()
+model = TTSModel.load_model(device=DEVICE, language=LANGUAGE, quantize=QUANTIZE)
+current_language = LANGUAGE  # tracks what's currently loaded
 voice_cache = {}
+
+# Maps common language names to model identifiers
+LANGUAGE_TO_MODEL = {
+    "english":    "english",
+    "en":         "english",
+    "italian":    "italian",
+    "it":         "italian",
+    "german":     "german",
+    "de":         "german",
+    "spanish":    "spanish",
+    "es":         "spanish",
+    "portuguese": "portuguese",
+    "pt":         "portuguese",
+    "french":     "french_24l",
+    "fr":         "french_24l",
+}
+
+def reload_model_if_needed(requested_lang: str | None):
+    global model, current_language, voice_cache
+    if not requested_lang:
+        return
+    target = LANGUAGE_TO_MODEL.get(requested_lang.lower(), requested_lang)
+    current = current_language or "english"
+    # Normalize current to its canonical model name
+    current_target = LANGUAGE_TO_MODEL.get(current.lower(), current)
+    if target == current_target:
+        return
+    print(f"\n [MODEL] Switching language: '{current}' → '{target}'")
+    model = TTSModel.load_model(device=DEVICE, language=target, quantize=QUANTIZE)
+    current_language = target
+    voice_cache.clear()
+    print(f" [MODEL] Model reloaded for language: {target}")
 
 def cleanup(path: str):
 	if os.path.exists(path):
@@ -83,22 +177,16 @@ async def speakers_list():
 async def set_tts_settings(request: Request):
 	return {"status": "success"}	
 	
+class TTSRequest(BaseModel):
+	text: str
+	speaker_wav: Optional[str] = "alba"
+	language: Optional[str] = None
+
 # --- ENDPOINT: TTS_TO_AUDIO (Agnostic JSON/Form) ---
-@app.post("/tts_to_audio")
-@app.post("/tts_to_audio/")
-async def tts_to_audio(request: Request, background_tasks: BackgroundTasks):
-	request_start = time.time()
-	ctype = request.headers.get("Content-Type", "")
-	if "application/json" in ctype:
-		data = await request.json()
-		text = data.get("text", "")
-		speaker = data.get("speaker_wav", "alba")
-	else:
-		data = await request.form()
-		text = data.get("text", "")
-		speaker = data.get("speaker_wav", "alba")
-		
+async def _do_tts(text: str, speaker: str, background_tasks: BackgroundTasks, language: str | None = None):
 	if not text: return {"error": "no text"}
+	reload_model_if_needed(language)
+	request_start = time.time()
 	print(f"\n>>> [TTS] Generating: [{speaker}] {text[:45]}...")
 	
 	state_start = time.time()
@@ -112,7 +200,7 @@ async def tts_to_audio(request: Request, background_tasks: BackgroundTasks):
 	
 	write_start = time.time()
 	tmp_path = f"gen_{uuid.uuid4()}.wav"
-	scipy.io.wavfile.write(tmp_path, model.sample_rate, audio.numpy())
+	scipy.io.wavfile.write(tmp_path, model.sample_rate, audio.cpu().numpy())
 	write_elapsed = time.time() - write_start
 	print(f" [TIMING] Audio write took {write_elapsed:.3f}s")
 	
@@ -121,6 +209,20 @@ async def tts_to_audio(request: Request, background_tasks: BackgroundTasks):
 	
 	background_tasks.add_task(cleanup, tmp_path)
 	return FileResponse(tmp_path, media_type="audio/wav")
+
+@app.post("/tts_to_audio", summary="TTS to Audio (JSON)")
+@app.post("/tts_to_audio/", include_in_schema=False)
+async def tts_to_audio_json(body: TTSRequest, background_tasks: BackgroundTasks):
+	return await _do_tts(body.text, body.speaker_wav or "alba", background_tasks, language=body.language)
+
+@app.post("/tts_to_audio_form", summary="TTS to Audio (Form)")
+async def tts_to_audio_form(
+	background_tasks: BackgroundTasks,
+	text: str = Form(...),
+	speaker_wav: str = Form("alba"),
+	language: Optional[str] = Form(None),
+):
+	return await _do_tts(text, speaker_wav, background_tasks, language=language)
 
 if __name__ == "__main__":
 	import uvicorn
