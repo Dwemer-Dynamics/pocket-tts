@@ -44,57 +44,67 @@ source venv/bin/activate
 echo "Installing dependencies..."
 pip install pocket_tts uvicorn fastapi
 
-echo ""
-echo "=== Setting up Custom Voice Generation ==="
-echo ""
-echo "Custom voice generation allows you to use voice samples from your game."
-echo "To enable it, you need to:"
-echo "  1. Have a HuggingFace account"
-echo "  2. Accept the license at: https://huggingface.co/kyutai/pocket-tts"
-echo "  3. Provide your HuggingFace token"
-echo ""
-echo "Would you like to set up custom voice generation now? (y/n)"
-read -r SETUP_GENERATION
+echo
+echo "=== Hugging Face Authentication ==="
+echo
+echo "Custom voice generation uses the gated PocketTTS model."
+echo "Before entering your token, please:"
+echo "  1. Go to: https://huggingface.co/kyutai/pocket-tts"
+echo "  2. Click 'Agree and access repository'"
+echo "  3. Get your token from: https://huggingface.co/settings/tokens"
+echo
+echo "Type 'skip' to continue without custom voice generation."
+echo
 
-if [ "$SETUP_GENERATION" = "y" ] || [ "$SETUP_GENERATION" = "Y" ]; then
-    echo ""
-    echo "Please follow these steps:"
-    echo "  1. Go to: https://huggingface.co/kyutai/pocket-tts"
-    echo "  2. Click 'Agree and access repository'"
-    echo "  3. Get your token from: https://huggingface.co/settings/tokens"
-    echo ""
-    echo "Press ENTER when you've accepted the license and have your token ready..."
-    read
-    
-    echo ""
-    echo "Now we'll set up HuggingFace authentication..."
-    echo "Paste your HuggingFace token here and press ENTER:"
-    read -r HF_TOKEN
-    
-    # Create HuggingFace config directory
-    mkdir -p ~/.cache/huggingface
-    
-    # Write token to file
-    echo "$HF_TOKEN" > ~/.cache/huggingface/token
-    chmod 600 ~/.cache/huggingface/token
-    
-    if [ -f ~/.cache/huggingface/token ] && [ -s ~/.cache/huggingface/token ]; then
-        echo ""
-        echo "✓ Custom voice generation setup complete!"
-        echo "  Voice samples will be processed automatically when needed."
+if [ -f ~/.cache/huggingface/token ] && [ -s ~/.cache/huggingface/token ]; then
+    echo "A Hugging Face token is already configured."
+    read -r -p "Press ENTER to keep it, or paste a new token: " HF_TOKEN_INPUT
+
+    if [ -n "$HF_TOKEN_INPUT" ]; then
+        mkdir -p ~/.cache/huggingface
+        printf '%s\n' "$HF_TOKEN_INPUT" > ~/.cache/huggingface/token
+        chmod 600 ~/.cache/huggingface/token
+        echo
+        echo "[OK] Hugging Face token updated."
     else
-        echo ""
-        echo "⚠ Custom voice generation setup incomplete."
-        echo "  You can set it up later by running this installer again."
-        echo "  Without custom voices, you can only use built-in voices:"
-        echo "  alba, marius, javert, jean, fantine, cosette, eponine, azelma"
+        echo
+        echo "[OK] Keeping the existing Hugging Face token."
     fi
 else
-    echo ""
-    echo "⚠ Skipping custom voice generation setup."
-    echo "  You can set it up later by running this installer again."
-    echo "  Without custom voices, you can only use built-in voices:"
-    echo "  alba, marius, javert, jean, fantine, cosette, eponine, azelma"
+    while true; do
+        read -r -p "Hugging Face token: " HF_TOKEN_INPUT
+
+        if [ "$HF_TOKEN_INPUT" = "skip" ]; then
+            echo
+            echo "[WARN] Skipping Hugging Face login."
+            echo "  You can set it up later by running this installer again."
+            echo "  Without custom voices, you can only use built-in voices:"
+            echo "  alba, marius, javert, jean, fantine, cosette, eponine, azelma"
+            break
+        fi
+
+        if [ -z "$HF_TOKEN_INPUT" ]; then
+            echo "No token entered. Paste a token or type 'skip'."
+            continue
+        fi
+
+        mkdir -p ~/.cache/huggingface
+        printf '%s\n' "$HF_TOKEN_INPUT" > ~/.cache/huggingface/token
+        chmod 600 ~/.cache/huggingface/token
+        echo
+        echo "[OK] Hugging Face token saved."
+        break
+    done
+fi
+
+echo
+echo "Select how PocketTTS should be enabled."
+./conf.sh
+
+if [ ! -f "$REPO_DIR/start.sh" ]; then
+    echo
+    echo "PocketTTS was left disabled."
+    exit 0
 fi
 
 echo
@@ -106,12 +116,10 @@ echo
 echo "Press ENTER to continue"
 read
 
-# Enable PocketTTS automatically after install (CPU mode).
-# This creates the start.sh marker used by DwemerDistro startup and
-# "Configure Installed Components" status checks.
-ln -sf "$REPO_DIR/start-cpu.sh" "$REPO_DIR/start.sh"
-chmod +x "$REPO_DIR/start-cpu.sh" "$REPO_DIR/start.sh"
-echo "PocketTTS service enabled (CPU mode)."
+START_TARGET="$(readlink -f "$REPO_DIR/start.sh")"
 
-# Launch the service
-python3 bridge_api.py
+if [ "$START_TARGET" = "$REPO_DIR/start-gpu.sh" ]; then
+    python3 bridge_api.py --device cuda
+else
+    python3 bridge_api.py
+fi
