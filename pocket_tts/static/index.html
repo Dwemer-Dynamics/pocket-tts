@@ -28,7 +28,7 @@
                 class="w-full border rounded p-2"
                 placeholder="Enter your text here..."
                 rows="4"
-            >Hello world. I am Kyutai's Pocket TTS. I'm fast enough to run on small CPUs. I hope you'll like me.</textarea>
+            >DEFAULT_TEXT_PROMPT</textarea>
         </div>
 
         <div class="bg-white p-4 rounded-lg shadow">
@@ -45,7 +45,8 @@
             <p class="text-xs text-gray-500 mt-1">
                 Supports: http://, https://, or hf:// URLs.<br>
                 You can also use predefined voices:<br>
-                "alba", "marius", "javert", "jean", "fantine", "cosette", "eponine", "azelma".
+                "alba", "anna", "azelma", "bill_boerst", "caro_davy", "charles", "eponine", "eve",
+                "fantine", "george", "jane", "jean", "mary", "michael", "paul", "peter_yearsley", "stuart_bell", "vera".
                 <br/>
                 You can find more voices in our
                 <a
@@ -111,7 +112,9 @@
     <script>
         class StreamingWavPlayer {
             constructor() {
-                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                this.audioContext = new (window.AudioContext || window.webkitAudioContext)(
+                    { latencyHint: "playback" }
+                );
                 this.sampleRate = 0;
                 this.numChannels = 0;
                 this.headerParsed = false;
@@ -311,7 +314,9 @@
                     formData.append('voice_url', voiceUrl);
                 }
 
-                const response = await fetch('/tts', {
+                const ttsEndpoint = `${window.location.pathname.replace(/\/+$/, '')}/tts`;
+
+                const response = await fetch(ttsEndpoint, {
                     method: 'POST',
                     body: formData
                 });

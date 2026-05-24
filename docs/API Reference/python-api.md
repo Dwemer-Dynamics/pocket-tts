@@ -37,16 +37,18 @@ The main class for text-to-speech generation.
 
 #### Class Methods
 
-##### `load_model(config="b6369a24", temp=0.7, lsd_decode_steps=1, noise_clamp=None, eos_threshold=-4.0)`
+##### `load_model(language=None, config=None, temp=0.7, lsd_decode_steps=1, noise_clamp=None, eos_threshold=-4.0, quantize=False)`
 
 Load and return a TTSModel instance with pre-trained weights.
 
 **Parameters:**
-- `config` (str): Path to model config YAML file or a variant identifier (default: "b6369a24")
+- `language` (str | None): Name of built-in language config to load. Supported values: `"english_2026-01"`, `"english_2026-04"`, `"english"`, `"french_24l"`, `"german_24l"`, `"portuguese_24l"`, `"italian_24l"`, `"spanish_24l"`. If both `language` and `config` are omitted, defaults to `"english"`, which is the same model as `"english_2026-04"`. The "24l" variants are larger models that are not distilled yet and are here only as a preview.
+- `config` (str | None): Path to model config YAML file. Incompatible with `language`.
 - `temp` (float): Sampling temperature for generation (default: 0.7)
 - `lsd_decode_steps` (int): Number of generation steps (default: 1)
 - `noise_clamp` (float | None): Maximum value for noise sampling (default: None)
 - `eos_threshold` (float): Threshold for end-of-sequence detection (default: -4.0)
+- `quantize` (bool): Enable int8 quantization when loading the model (default: `False`)
 
 **Returns:**
 - `TTSModel`: Loaded model instance on CPU
@@ -59,7 +61,9 @@ from pocket_tts import TTSModel
 model = TTSModel.load_model()
 
 # Load with custom parameters
-model = TTSModel.load_model(variant="b6369a24", temp=0.5, lsd_decode_steps=5, eos_threshold=-3.0)
+model = TTSModel.load_model(
+    language="english_2026-01", temp=0.5, lsd_decode_steps=5, eos_threshold=-3.0
+)
 ```
 
 #### Properties
@@ -172,34 +176,36 @@ for chunk in model.generate_audio_stream(voice_state, "Long text content..."):
     # Could save chunks to file or play in real-time
 ```
 
-##### `save_audio_prompt(audio_conditioning, export_path, truncate=False)`
 
-Save audio prompt to a .safetensors file.
+## Functions
+
+### export_model_state
+
+Export a model state for a given voice conditioning to a safetensors file for fast loading later.
+You can then load it again with the method `get_state_for_audio_prompt()`.
 
 **Parameters:**
-- `audio_conditioning` (Path | str | torch.Tensor): Audio file path, URL, or tensor
-- `export_path` (Path | str): .safetensors file path
-- `truncate` (bool): Whether to truncate the audio (default: False)
-
-**Returns:**
-- tensor of the converted audio.
+- `model_state` (dict): Model state dictionary from `get_state_for_audio_prompt()`
+- `dest` (str | Path): Path to save the safetensors file
 
 **Example:**
 ```python
-from pocket_tts import TTSModel
+from pocket_tts import TTSModel, export_model_state
 
 model = TTSModel.load_model()
-# From HuggingFace URL
-model.get_state_for_audio_prompt(
-    "hf://kyutai/tts-voices/alba-mackenna/casual.wav", "casual.safetensors"
+
+# Get voice state from an audio file
+model_state_for_voice = model.get_state_for_audio_prompt(
+    "hf://kyutai/tts-voices/alba-mackenna/casual.wav"
 )
 
-# From local file (the .safetensors extension will be added automatically)
-tensor = model.get_state_for_audio_prompt("./my_voice.wav", "my_voice")
+# Export to safetensors for fast loading later
+export_model_state(model_state_for_voice, "my_voice.safetensors")
 
-# Use the tensor, Luke!
-audio = model.generate_audio(tensor, "Hello world!")
+# Quite fast, it's just loading the tensors without running any pytorch code
+model_state_for_voice_copy = model.get_state_for_audio_prompt("my_voice.safetensors")
 ```
+
 
 ## Advanced Usage
 
