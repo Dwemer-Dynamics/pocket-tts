@@ -8,11 +8,11 @@ PocketTTS
 
 This will configure the PocketTTS (Text-to-Speech) service.
 
-PocketTTS generates custom voices from samples and supports both CPU and GPU inference.
+PocketTTS generates custom voices from samples and supports both CPU and GPU / CUDA inference.
 
 Options:
+* GPU / CUDA = Runs on NVIDIA GPU (CUDA). Faster on large models (24-layer variants).
 * CPU = Runs on CPU only. Best choice for AMD cards or systems without NVIDIA GPU.
-* GPU = Runs on NVIDIA GPU (CUDA). Faster on large models (24-layer variants).
 
 EOF
 
@@ -24,8 +24,8 @@ fi
 while true; do
     echo "Select an option from the list:"
     echo
-    echo "1. Enable service (CPU)"
-    echo "2. Enable service (GPU / CUDA)"
+    echo "1. Enable service (GPU / CUDA)"
+    echo "2. Enable service (CPU)"
     echo "0. Disable service"
     echo
 
@@ -38,13 +38,13 @@ while true; do
             exit 0
             ;;
         1)
-            ln -sf "$REPO_DIR/start-cpu.sh" "$REPO_DIR/start.sh"
-            echo "[OK] PocketTTS enabled with CPU mode"
+            ln -sf "$REPO_DIR/start-gpu.sh" "$REPO_DIR/start.sh"
+            echo "[OK] PocketTTS enabled with GPU / CUDA mode"
             exit 0
             ;;
         2)
-            ln -sf "$REPO_DIR/start-gpu.sh" "$REPO_DIR/start.sh"
-            echo "[OK] PocketTTS enabled with GPU mode"
+            ln -sf "$REPO_DIR/start-cpu.sh" "$REPO_DIR/start.sh"
+            echo "[OK] PocketTTS enabled with CPU mode"
             exit 0
             ;;
         *)

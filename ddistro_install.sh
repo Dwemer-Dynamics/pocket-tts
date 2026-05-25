@@ -119,7 +119,9 @@ read
 START_TARGET="$(readlink -f "$REPO_DIR/start.sh")"
 
 if [ "$START_TARGET" = "$REPO_DIR/start-gpu.sh" ]; then
+    echo "[OK] Starting PocketTTS in GPU / CUDA mode"
     python3 bridge_api.py --device cuda
 else
+    echo "[OK] Starting PocketTTS in CPU mode"
     python3 bridge_api.py
 fi
