@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from typing import Optional
 from pocket_tts import TTSModel
+from voice_management import delete_voice_file, normalize_voice_id, voice_path
 app = FastAPI()
 # Configuration
 PORT = 8020
@@ -159,18 +160,63 @@ async def upload_sample(request: Request):
 	if not uploaded_file:
 		print(" [ERROR] No file object detected.")
 		return JSONResponse(status_code=400, content={"error": "No file detected"})
-	save_path = os.path.join(SPEAKER_DIR, f"{speaker_name}.wav")
-	with open(save_path, "wb") as buffer:
-		shutil.copyfileobj(uploaded_file.file, buffer)
-	if speaker_name in voice_cache: del voice_cache[speaker_name]
+	try:
+		speaker_name = normalize_voice_id(speaker_name)
+	except ValueError as exc:
+		return JSONResponse(status_code=400, content={"error": str(exc)})
+	save_path = voice_path(SPEAKER_DIR, speaker_name)
+	replaced = save_path.exists()
+	temp_path = save_path.parent / f".upload-{uuid.uuid4().hex}.wav"
+	try:
+		with open(temp_path, "wb") as buffer:
+			shutil.copyfileobj(uploaded_file.file, buffer)
+		if temp_path.stat().st_size == 0:
+			return JSONResponse(status_code=400, content={"error": "Uploaded WAV is empty"})
+		os.replace(temp_path, save_path)
+	finally:
+		if temp_path.exists():
+			temp_path.unlink()
+	voice_cache.pop(speaker_name, None)
 	print(f" [SUCCESS] Synced voice clone for: {speaker_name}")
-	return {"status": "success", "speaker": speaker_name}
+	return {"status": "success", "speaker": speaker_name, "replaced": replaced}
 	
 # --- ENDPOINT: SPEAKERS_LIST ---
 @app.get("/speakers_list")
 async def speakers_list():
 	files = [f.replace(".wav", "") for f in os.listdir(SPEAKER_DIR) if f.endswith(".wav")]
 	return files if files else ["alba", "marius", "javert"]
+
+@app.get("/speakers_list_extended")
+async def speakers_list_extended():
+	files = sorted(f[:-4] for f in os.listdir(SPEAKER_DIR) if f.endswith(".wav"))
+	if files:
+		items = [
+			{"voice_id": voice_id, "can_delete": True, "source": "uploaded_sample"}
+			for voice_id in files
+		]
+	else:
+		items = [
+			{"voice_id": voice_id, "can_delete": False, "source": "builtin"}
+			for voice_id in ("alba", "marius", "javert")
+		]
+	return {"speakers": items, "count": len(items)}
+
+@app.delete("/voices/{voice_id}")
+async def delete_voice(voice_id: str):
+	try:
+		normalized = normalize_voice_id(voice_id)
+		removed = delete_voice_file(SPEAKER_DIR, normalized)
+	except ValueError as exc:
+		return JSONResponse(status_code=400, content={"error": str(exc)})
+	if removed is None:
+		return JSONResponse(status_code=404, content={"error": f"Uploaded voice '{normalized}' was not found"})
+	voice_cache.pop(normalized, None)
+	return {
+		"status": "deleted",
+		"voice_id": normalized,
+		"removed": [removed.name],
+		"cache_invalidated": True,
+	}
 	
 # --- ENDPOINT: SETTINGS (Satisfies PHP Initialization) ---
 @app.post("/set_tts_settings")
