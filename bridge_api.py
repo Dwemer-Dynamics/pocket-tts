@@ -16,7 +16,8 @@ from voice_management import delete_voice_file, normalize_voice_id, voice_path
 
 app = FastAPI()
 # Configuration
-PORT = 8020
+DEFAULT_HOST = os.environ.get("POCKETTTS_HOST", "0.0.0.0")
+DEFAULT_PORT = int(os.environ.get("POCKETTTS_PORT", "8024"))
 SPEAKER_DIR = "./speakers"
 os.makedirs(SPEAKER_DIR, exist_ok=True)
 AVAILABLE_MODELS = [
@@ -35,6 +36,8 @@ AVAILABLE_MODELS = [
 ]
 
 parser = argparse.ArgumentParser(description="Pocket TTS Bridge API")
+parser.add_argument("--host", type=str, default=DEFAULT_HOST, help="Host address to bind")
+parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="TCP port to bind")
 parser.add_argument(
     "--device", type=str, default="cpu", help="Device to run the model on (cpu, cuda, cuda:0, etc.)"
 )
@@ -76,6 +79,8 @@ if args.list_devices:
     raise SystemExit(0)
 
 DEVICE = args.device
+HOST = args.host
+PORT = args.port
 LANGUAGE = args.language
 QUANTIZE = args.quantize
 
@@ -245,6 +250,24 @@ async def delete_voice(voice_id: str):
 
 
 # --- ENDPOINT: SETTINGS (Satisfies PHP Initialization) ---
+@app.get("/health")
+async def health():
+    return {
+        "status": "ok",
+        "provider": "pockettts",
+        "runtime": "python",
+        "api_family": "xtts-compatible",
+        "port": PORT,
+        "device": DEVICE,
+        "language": current_language,
+    }
+
+
+@app.get("/provider_info")
+async def provider_info():
+    return await health()
+
+
 @app.post("/set_tts_settings")
 async def set_tts_settings(request: Request):
     return {"status": "success"}
@@ -307,4 +330,4 @@ async def tts_to_audio_form(
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
+    uvicorn.run(app, host=HOST, port=PORT)

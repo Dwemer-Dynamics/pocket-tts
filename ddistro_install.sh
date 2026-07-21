@@ -7,10 +7,17 @@ REPO_URL="https://github.com/Dwemer-Dynamics/pocket-tts"
 REPO_DIR="$BASE_DIR/pocket-tts"
 VENV_DIR="$REPO_DIR/venv"
 
+if [ -f /etc/dwemerdistro_services.conf ]; then
+    # shellcheck disable=SC1091
+    source /etc/dwemerdistro_services.conf
+fi
+export POCKETTTS_HOST="${POCKETTTS_HOST:-0.0.0.0}"
+export POCKETTTS_PORT="${POCKETTTS_PORT:-8024}"
+
 echo "=== CHIM pocket-tts setup ==="
 echo ""
-echo "NOTE: pocket-tts and CHIM XTTS/Chatterbox use the same port (8020)."
-echo "      Only one can be enabled at a time."
+echo "PocketTTS Python uses its dedicated DwemerDistro port ($POCKETTTS_PORT)."
+echo "XTTS remains on 8020 and Chatterbox uses 8023."
 echo ""
 
 # Ensure base directory exists
@@ -110,7 +117,7 @@ fi
 echo
 echo "This will start CHIM pocket-tts to download the selected model"
 echo "Wait for the message:"
-echo "  'Uvicorn running on http://0.0.0.0:8020 (Press CTRL+C to quit)'"
+echo "  'Uvicorn running on http://$POCKETTTS_HOST:$POCKETTTS_PORT (Press CTRL+C to quit)'"
 echo "Then close this window."
 echo
 echo "Press ENTER to continue"

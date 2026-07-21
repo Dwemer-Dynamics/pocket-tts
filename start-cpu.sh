@@ -14,5 +14,11 @@ fi
 
 # Activate virtual environment
 source venv/bin/activate
+if [ -f /etc/dwemerdistro_services.conf ]; then
+    # shellcheck disable=SC1091
+    source /etc/dwemerdistro_services.conf
+fi
+export POCKETTTS_HOST="${POCKETTTS_HOST:-0.0.0.0}"
+export POCKETTTS_PORT="${POCKETTTS_PORT:-8024}"
 # Launch the service
 python3 bridge_api.py &> log.txt &
