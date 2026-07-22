@@ -17,7 +17,9 @@ from voice_management import delete_voice_file, normalize_voice_id, voice_path
 app = FastAPI()
 # Configuration
 DEFAULT_HOST = os.environ.get("POCKETTTS_HOST", "0.0.0.0")
-DEFAULT_PORT = int(os.environ.get("POCKETTTS_PORT", "8024"))
+# Preserve the released shared-port behavior unless DwemerDistro or the user
+# explicitly supplies the dedicated port.
+DEFAULT_PORT = int(os.environ.get("POCKETTTS_PORT", "8020"))
 SPEAKER_DIR = "./speakers"
 os.makedirs(SPEAKER_DIR, exist_ok=True)
 AVAILABLE_MODELS = [

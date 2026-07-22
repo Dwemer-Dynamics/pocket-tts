@@ -6,19 +6,14 @@ BASE_DIR="/home/dwemer"
 REPO_URL="https://github.com/Dwemer-Dynamics/pocket-tts"
 REPO_DIR="$BASE_DIR/pocket-tts"
 VENV_DIR="$REPO_DIR/venv"
+PORT_FILE="$REPO_DIR/.dwemerdistro-port"
+FRESH_INSTALL=0
 
-if [ -f /etc/dwemerdistro_services.conf ]; then
-    # shellcheck disable=SC1091
-    source /etc/dwemerdistro_services.conf
+if [ ! -d "$VENV_DIR" ]; then
+    FRESH_INSTALL=1
 fi
-export POCKETTTS_HOST="${POCKETTTS_HOST:-0.0.0.0}"
-export POCKETTTS_PORT="${POCKETTTS_PORT:-8024}"
 
 echo "=== CHIM pocket-tts setup ==="
-echo ""
-echo "PocketTTS Python uses its dedicated DwemerDistro port ($POCKETTTS_PORT)."
-echo "XTTS remains on 8020 and Chatterbox uses 8023."
-echo ""
 
 # Ensure base directory exists
 mkdir -p "$BASE_DIR"
@@ -35,6 +30,26 @@ else
 fi
 
 cd "$REPO_DIR"
+
+# Existing installs retain 8020. Fresh installs receive the dedicated port.
+if [ ! -f "$PORT_FILE" ]; then
+    if [ "$FRESH_INSTALL" -eq 1 ]; then
+        printf '8024\n' > "$PORT_FILE"
+    else
+        printf '8020\n' > "$PORT_FILE"
+    fi
+fi
+export POCKETTTS_HOST="${POCKETTTS_HOST:-0.0.0.0}"
+POCKETTTS_PORT="${POCKETTTS_PORT:-$(tr -d '[:space:]' < "$PORT_FILE")}"
+case "$POCKETTTS_PORT" in
+    ''|*[!0-9]*) POCKETTTS_PORT=8020 ;;
+esac
+export POCKETTTS_PORT
+
+echo ""
+echo "PocketTTS Python will use port $POCKETTTS_PORT."
+echo "XTTS remains on 8020; dedicated Chatterbox uses 8023."
+echo ""
 
 # Create virtual environment if it doesn't exist
 if [ ! -d "$VENV_DIR" ]; then
