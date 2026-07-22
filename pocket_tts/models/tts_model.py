@@ -317,7 +317,13 @@ class TTSModel(nn.Module):
         logger.info(f"Loading model from config at {config_path}...")
 
         tts_model = TTSModel._from_pydantic_config_with_weights(
-            config, temp, lsd_decode_steps, noise_clamp, eos_threshold, origin=config_path, device=device
+            config,
+            temp,
+            lsd_decode_steps,
+            noise_clamp,
+            eos_threshold,
+            origin=config_path,
+            device=device,
         )
 
         if quantize:
