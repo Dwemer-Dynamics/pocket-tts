@@ -144,8 +144,7 @@ def reload_model_if_needed(requested_lang: str | None):
         raise HTTPException(
             status_code=400,
             detail=(
-                f"Unsupported language '{requested_lang}'. "
-                f"Use one of: {SUPPORTED_LANGUAGE_TEXT}."
+                f"Unsupported language '{requested_lang}'. Use one of: {SUPPORTED_LANGUAGE_TEXT}."
             ),
         )
     target = LANGUAGE_TO_MODEL.get(requested, requested)
@@ -335,11 +334,7 @@ async def _do_tts(
     return FileResponse(tmp_path, media_type="audio/wav")
 
 
-@app.post(
-    "/tts_to_audio",
-    summary="TTS to Audio (JSON)",
-    responses=INVALID_LANGUAGE_RESPONSE,
-)
+@app.post("/tts_to_audio", summary="TTS to Audio (JSON)", responses=INVALID_LANGUAGE_RESPONSE)
 @app.post("/tts_to_audio/", include_in_schema=False)
 async def tts_to_audio_json(body: TTSRequest, background_tasks: BackgroundTasks):
     return await _do_tts(
@@ -347,20 +342,13 @@ async def tts_to_audio_json(body: TTSRequest, background_tasks: BackgroundTasks)
     )
 
 
-@app.post(
-    "/tts_to_audio_form",
-    summary="TTS to Audio (Form)",
-    responses=INVALID_LANGUAGE_RESPONSE,
-)
+@app.post("/tts_to_audio_form", summary="TTS to Audio (Form)", responses=INVALID_LANGUAGE_RESPONSE)
 async def tts_to_audio_form(
     background_tasks: BackgroundTasks,
     text: str = Form(...),
     speaker_wav: str = Form("alba"),
     language: Optional[str] = Form(
-        None,
-        title="Language or model",
-        description=LANGUAGE_FIELD_DESCRIPTION,
-        examples=["en"],
+        None, title="Language or model", description=LANGUAGE_FIELD_DESCRIPTION, examples=["en"]
     ),
 ):
     return await _do_tts(text, speaker_wav, background_tasks, language=language)
