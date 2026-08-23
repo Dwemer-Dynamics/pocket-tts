@@ -7,9 +7,9 @@ from typing import Optional
 
 import scipy.io.wavfile
 import torch
-from fastapi import BackgroundTasks, FastAPI, Form, Request
+from fastapi import BackgroundTasks, FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from pocket_tts import TTSModel
 from voice_management import delete_voice_file, normalize_voice_id, voice_path
@@ -123,13 +123,32 @@ LANGUAGE_TO_MODEL = {
     "french": "french_24l",
     "fr": "french_24l",
 }
+MODEL_NAMES = tuple(name for name, _description in AVAILABLE_MODELS)
+SUPPORTED_LANGUAGE_VALUES = tuple(dict.fromkeys((*LANGUAGE_TO_MODEL, *MODEL_NAMES)))
+SUPPORTED_LANGUAGE_TEXT = ", ".join(SUPPORTED_LANGUAGE_VALUES)
+LANGUAGE_FIELD_DESCRIPTION = (
+    "Language or model for this request. Use a short alias such as en, it, de, es, pt, or fr, "
+    "or a full model name. Omit to keep the currently loaded model."
+)
+INVALID_LANGUAGE_RESPONSE = {
+    400: {"description": "language is not a supported alias or model name."}
+}
 
 
 def reload_model_if_needed(requested_lang: str | None):
     global model, current_language, voice_cache
     if not requested_lang:
         return
-    target = LANGUAGE_TO_MODEL.get(requested_lang.lower(), requested_lang)
+    requested = requested_lang.strip().lower()
+    if requested not in SUPPORTED_LANGUAGE_VALUES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Unsupported language '{requested_lang}'. "
+                f"Use one of: {SUPPORTED_LANGUAGE_TEXT}."
+            ),
+        )
+    target = LANGUAGE_TO_MODEL.get(requested, requested)
     current = current_language or "english"
     # Normalize current to its canonical model name
     current_target = LANGUAGE_TO_MODEL.get(current.lower(), current)
@@ -278,7 +297,12 @@ async def set_tts_settings(request: Request):
 class TTSRequest(BaseModel):
     text: str
     speaker_wav: Optional[str] = "alba"
-    language: Optional[str] = None
+    language: Optional[str] = Field(
+        default=None,
+        title="Language or model",
+        description=LANGUAGE_FIELD_DESCRIPTION,
+        examples=["en"],
+    )
 
 
 # --- ENDPOINT: TTS_TO_AUDIO (Agnostic JSON/Form) ---
@@ -311,7 +335,11 @@ async def _do_tts(
     return FileResponse(tmp_path, media_type="audio/wav")
 
 
-@app.post("/tts_to_audio", summary="TTS to Audio (JSON)")
+@app.post(
+    "/tts_to_audio",
+    summary="TTS to Audio (JSON)",
+    responses=INVALID_LANGUAGE_RESPONSE,
+)
 @app.post("/tts_to_audio/", include_in_schema=False)
 async def tts_to_audio_json(body: TTSRequest, background_tasks: BackgroundTasks):
     return await _do_tts(
@@ -319,12 +347,21 @@ async def tts_to_audio_json(body: TTSRequest, background_tasks: BackgroundTasks)
     )
 
 
-@app.post("/tts_to_audio_form", summary="TTS to Audio (Form)")
+@app.post(
+    "/tts_to_audio_form",
+    summary="TTS to Audio (Form)",
+    responses=INVALID_LANGUAGE_RESPONSE,
+)
 async def tts_to_audio_form(
     background_tasks: BackgroundTasks,
     text: str = Form(...),
     speaker_wav: str = Form("alba"),
-    language: Optional[str] = Form(None),
+    language: Optional[str] = Form(
+        None,
+        title="Language or model",
+        description=LANGUAGE_FIELD_DESCRIPTION,
+        examples=["en"],
+    ),
 ):
     return await _do_tts(text, speaker_wav, background_tasks, language=language)
 
